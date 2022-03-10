@@ -1,0 +1,23 @@
+name: Tear Down PyYouwol Integration Testing
+description: Stop daemonized py-youwol
+inputs:
+  cleanDirs:
+    description: "Remove directories (true by default)"
+    required: false
+    default: "true"
+
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Stopping py-youwol
+      run: sh $py_it_shutdown_script
+      shell: bash
+    - name: Remove py-youwol
+      if: inputs.cleanDirs == 'true'
+      run: rm -r $py_it_py_youwol_dir
+      shell: bash
+    - name: Remove integration testing configuration
+      if: inputs.cleanDirs == 'true'
+      run: rm -r $py_it_conf_dir
+      shell: bash

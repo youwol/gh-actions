@@ -1,0 +1,100 @@
+name: Set up PyYouwol Integration Testing
+description: Set up & launch py-youwol for integration testing
+inputs:
+  pyYouwolRef:
+    description: Git ref for py-youwol checkout
+    required: false
+    default: master
+  integrationTestsRef:
+    description: Git ref for integration-tests-conf checkout
+    required: false
+    default: main
+
+runs:
+  using: 'composite'
+  steps:
+###### Prepare environnement variables
+    # $GITHUB_ENV is a file managed by Github Actions
+    # This environnement variables will be available during the whole workflow
+    # - py_it_dir : Path of the directory containing everything pertaining to py-youwol integration testing
+    # - py_it_py_youwol_dir : Path of the sources of py-youwol
+    # - py_it_conf_dir : Path of the configuration use for integration testing
+    # - py_it_shutdown_script : Path of the shell script for stopping the running py-youwol instance
+    - name: Set up environnement variables
+      id: set_up_env
+      run: |
+        echo "py_it_dir=$RUNNER_TEMP/py-youwol-integration/" >> $GITHUB_ENV
+        echo "py_it_py_youwol_dir=$GITHUB_WORKSPACE/.py-youwol-integration/py-youwol" >> $GITHUB_ENV
+        echo "py_it_conf_dir=$GITHUB_WORKSPACE/.py-youwol-integration/it-conf" >> $GITHUB_ENV
+        echo "py_it_shutdown_script=$RUNNER_TEMP/py-youwol-integration/py-youwol.shutdown.sh" >> $GITHUB_ENV
+        mkdir $RUNNER_TEMP/py-youwol-integration
+      shell: bash
+    # Log the configured environnement
+    - name: Dump environnement variables
+      id: dump_env
+      run: |
+        echo "::group::Environnement variables"
+        export
+        echo "::endgroup::"
+      shell: bash
+
+###### Checkout repositories
+    # Checkout py-youwol into $py_it_py_youwol_dir, using the ref from input pyYouwolRef
+    - name: Checkout py-youwol repo
+      id: checkout_py_youwol
+      uses: actions/checkout@v3
+      with:
+        repository: youwol/py-youwol
+        ref: ${{ inputs.pyYouwolRef }}
+        path: ${{ env.py_it_py_youwol_dir }}
+    # Checkout the integration testing conf into $py_it_conf_dir, using the ref from input integrationTestsRef
+    - name: Checkout integration tests configuration repo
+      id: checkout_it_conf
+      uses: actions/checkout@v3
+      with:
+        repository: youwol/integration-tests-conf
+        ref: ${{ inputs.integrationTestsRef }}
+        path: ${{ env.py_it_conf_dir }}
+
+###### Setup python & dependencies
+    - name: Setup Python 3.9
+      id: setup_python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    - name: Install dependencies
+      id: install_python_dep
+      run: pip install -r ${py_it_py_youwol_dir}/requirements.txt
+      shell: bash
+
+###### Launch py-youwol
+    # Launching py-youwol
+    # The working directory is important, it's there that the shutdown script will be generated
+    # PYTHONPATH is defined only for this step, so it does not pollute other steps or jobs
+    - name: Launch py-youwol
+      id: launch_py_youwol
+      working-directory: ${{ env.py_it_dir }}
+      env:
+        PYTHONPATH: ${{ env.py_it_py_youwol_dir }}
+      run: python3 -u ${py_it_py_youwol_dir}/youwol/main.py --conf ${py_it_conf_dir}/yw_config_IT.py --daemonize &
+      shell: bash
+    # Try 10 times to call healtz endpoint, checking its response, and waiting 1 second between retries
+    - name: Wait for running instance
+      id: wait_py_youwol_running
+      run: |
+        jq_cmd='if .status == "py-youwol ok" then halt else error ("incorrect status from py-youwol") end'
+        for try in $(seq 1 1 10); do
+          echo "try $try/10 to contact py-youwol instance"
+          curl --silent http://localhost:2001/healthz | jq -e "${jq_cmd}" && exit 0
+          sleep 1
+        done
+        echo "::error ::Failed to contact py-youwol instance after 10 seconds"
+        exit 1
+      shell: bash
+    # Finally, some annotated logging about how everything is configured
+    - name: Summary
+      id: summary
+      run: |
+        echo "::notice title='Py-Youwol Integration Testing'::youwol/py-youwol@${{ inputs.pyYouwolRef}} running with configuration from youwol/integration-tests-conf@${{ inputs.integrationTestsRef }}"
+      shell: bash

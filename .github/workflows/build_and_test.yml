@@ -1,0 +1,76 @@
+name: Build & Test
+
+on:
+  workflow_call:
+    inputs:
+      keepArtifacts:
+        description: 'should workflow upload artifacts ?'
+        default: false
+        required: false
+        type: boolean
+      pyYouwolIntegration:
+        description: 'is testing use py-youwol integration ?'
+        type: boolean
+        default: false
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up repo
+        uses: youwol/gh-actions/set_up_repo@main
+      - name: Build
+        run: yarn build:prod
+      - name: Set up py-youwol integration
+        if: inputs.pyYouwolIntegration
+        uses: youwol/gh-actions/set_up_py-youwol_integration@main
+      - name: Test
+        run: yarn test
+      - name: Tear down py-youwol integration
+        if: inputs.pyYouwolIntegration
+        uses: youwol/gh-actions/tear_down_py-youwol_integration@main
+
+  static-analyse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up repo
+        uses: youwol/gh-actions/set_up_repo@main
+      - name: Set up py-youwol integration
+        if: inputs.pyYouwolIntegration
+        uses: youwol/gh-actions/set_up_py-youwol_integration@main
+        with:
+          pyYouwolRef: test_ci
+      - name: Test Coverage
+        run: yarn test-coverage
+      - name: Tear down py-youwol integration
+        if: inputs.pyYouwolIntegration
+        uses: youwol/gh-actions/tear_down_py-youwol_integration@main
+      - name: Check code formatting
+        run: yarn prettier --check .
+      - name: Check code quality
+        run: yarn eslint --format html --output-file eslint-report.html .
+      - name: Audit dependencies
+        run: yarn audit
+      - name: Upload site artifacts
+        if: inputs.keepArtifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: static-analyse-artifacts
+          path: |
+            junit.xml
+            eslint-report.html
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up repo
+        uses: youwol/gh-actions/set_up_repo@main
+      - name: Build documentation
+        run: yarn doc
+      - name: Upload site artifacts
+        if: inputs.keepArtifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: doc-artifacts
+          path: dist/doc/

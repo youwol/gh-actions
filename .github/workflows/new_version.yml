@@ -1,0 +1,36 @@
+name: Create a new version, optionnally publishing it
+on:
+  workflow_call:
+    inputs:
+      newVersion:
+        description: 'the new version'
+        required: true
+        type: string
+
+jobs:
+  update-version-string:
+    runs-on: ubuntu-latest
+    env:
+      new_version: ${{ inputs.newVersion }}
+    steps:
+      - name: Set up repo
+        uses: youwol/gh-actions/set_up_repo@main
+
+      - name: Prepare git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
+      - name: Update version
+        run: yarn version --new-version ${new_version}
+
+      - name: Prepare next version
+        run: yarn version --no-git-tag-version --new-version $(yarn -s semver -i patch ${new_version})-wip
+
+      - name: Commit next version
+        run: |
+          git add package.json
+          git commit -m "start ${new_version}-wip"
+
+      - name: Push
+        run: git push
