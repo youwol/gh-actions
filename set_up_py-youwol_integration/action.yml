@@ -79,7 +79,7 @@ runs:
         PYTHONPATH: ${{ env.py_it_py_youwol_dir }}
       run: python3 -u ${py_it_py_youwol_dir}/youwol/main.py --conf ${py_it_conf_dir}/yw_config_IT.py --daemonize &
       shell: bash
-    # Try 10 times to call healtz endpoint, checking its response, and waiting 1 second between retries
+    # Try at most 10 times to call healtz endpoint, checking its response, and waiting 1 second between retries
     - name: Wait for running instance
       id: wait_py_youwol_running
       run: |
@@ -96,5 +96,5 @@ runs:
     - name: Summary
       id: summary
       run: |
-        echo "::notice title='Py-Youwol Integration Testing'::youwol/py-youwol@${{ inputs.pyYouwolRef}} running with configuration from youwol/integration-tests-conf@${{ inputs.integrationTestsRef }}"
+        echo "::notice title=Py-Youwol Integration Testing::youwol/py-youwol@${{ inputs.pyYouwolRef}} running with configuration from youwol/integration-tests-conf@${{ inputs.integrationTestsRef }}"
       shell: bash

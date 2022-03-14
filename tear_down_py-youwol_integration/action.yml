@@ -11,13 +11,25 @@ runs:
   using: 'composite'
   steps:
     - name: Stopping py-youwol
+      id: shutdown_py_youwol
       run: sh $py_it_shutdown_script
       shell: bash
-    - name: Remove py-youwol
+    - name: Remove py-youwol directory
+      id: remove_py_youwol_dir
       if: inputs.cleanDirs == 'true'
       run: rm -r $py_it_py_youwol_dir
       shell: bash
-    - name: Remove integration testing configuration
+    - name: Remove integration testing configuration directory
+      id: remove_it_conf
       if: inputs.cleanDirs == 'true'
       run: rm -r $py_it_conf_dir
+      shell: bash
+    - name: Summary
+      id: sunnary
+      run: |
+        message="py-youwol has been shutdown"
+        if [ ${{ inputs.cleanDirs }} == 'true' ];then
+          message="${message} and afferent directories have been removed"
+        fi
+        echo "::notice title=Py-Youwol Integration Testing::${message}"
       shell: bash
