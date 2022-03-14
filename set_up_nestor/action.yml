@@ -1,0 +1,26 @@
+name: Set up repository
+description: Set up a yarn repository and install package.json
+inputs:
+  ref:
+    description: "the ref to checkout (default to develop)"
+    required: false
+    default: develop
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout repo
+      id: checkout
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ inputs.ref }}
+    - name: Setup Node.js
+      id: setup_node
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+        cache: 'yarn'
+    - name: Install dependencies
+      id: install_yarn_deps
+      run: yarn --frozen-lockfile
+      shell: bash
