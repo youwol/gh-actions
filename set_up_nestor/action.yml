@@ -1,26 +1,65 @@
-name: Set up repository
-description: Set up a yarn repository and install package.json
+name: Set up Nestor
+description: Set up git & GnuPG for Nestor
 inputs:
-  ref:
-    description: "the ref to checkout (default to develop)"
-    required: false
-    default: develop
+  nestor_gpg_priv:
+    description: The GPG armored private key for Nestor
+    required: true
+outputs:
+  nestor_gnupghome:
+    description: Home repertory for GPG operations
+    value: ${{ steps.summary.outputs.gnupghome }}
 
 runs:
   using: 'composite'
+
   steps:
-    - name: Checkout repo
-      id: checkout
-      uses: actions/checkout@v2
-      with:
-        ref: ${{ inputs.ref }}
-    - name: Setup Node.js
-      id: setup_node
-      uses: actions/setup-node@v2
-      with:
-        node-version: '16'
-        cache: 'yarn'
-    - name: Install dependencies
-      id: install_yarn_deps
-      run: yarn --frozen-lockfile
+    - name: Set up GPG
+      id: set_up_gpg
+      env:
+        gnupghome_base: ${{ runner.temp }}/gnup_pg_home
+        NESTOR_EMAIL: "nestor@youwol.com"
+        NESTOR_NAME: "Nestor YouBot"
+      run: |
+        ### Set up GPG for Nestor
+        echo "::debug::gpg version: ${gpg --version}"
+        GNUPGHOME="${gnupghome_base}/$(base64 <<<$RANDOM)"
+        echo "::group::Prepare GNUPGHOME=${GNUPGHOME}"
+        mkdir $GNUPGHOME
+        chmod 0700 $GNUPGHOME
+        echo "::endgroup::"
+        echo "::group::Import GPG private key"
+        echo "${{ env.NESTOR_GPG_PRIV }}" | gpg --import --batch --no-tty
+        echo "::endgroup::"
+        echo "::group::Get key fingerprint"
+        gpg_fprs_output=$(gpg --fingerprint --with-colons --list-keys $NESTOR_EMAIL) 
+        fpr=$(awk -F: '$1 == "fpr" {print $10;}' <<<$gpg_fprs_output | head -n1)
+        echo "::endgroup::"
+        echo "::group::Outputs GPG informations"
+        echo "::set-output name=gnupghome::$GNUPGHOME"
+        echo "::set-output name=nestor_email::$NESTOR_EMAIL"
+        echo "::set-output name=nestor_name::$NESTOR_NAME"
+        echo "::set-output name=nestor_signingkey::$fpr"
+        echo "::endgroup::"
+      shell: bash
+    - name: Set up git
+      id: set_up_git
+      env:
+        nestor_name: ${{ steps.set_up_gpg.outputs.nestor_name }}
+        nestor_email: ${{ steps.set_up_gpg.outputs.nestor_email }}
+        nestor_signingkey: ${{ steps.set_up_gpg.outputs.nestor_signingkey }}
+      run: |
+        ### Set up git for Nestor
+        git config --global user.name "${nestor_name}"
+        git config --global user.email "${nestor_email}"
+        git config --global user.signingkey "${nestor_signingkey}"
+        git config --global commit.gpgsign true
+      shell: bash
+    - name: Summary
+      id: summary
+      env:
+        GNUPGHOME: ${{ steps.set_up_gpg.outputs.gnupghome }}
+      run: |
+        message="Nestor set up to commit as « $NESTOR_NAME ($NESTOR_EMAIL) » with GPG key $NESTOR_GPG_FPR"
+        echo "::set-output name=gnupghome::$GNUPGHOME"
+        echo "::notice title=Nestor Set Up::$message"
       shell: bash

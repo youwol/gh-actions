@@ -23,16 +23,20 @@ runs:
     - name: Set up environnement variables
       id: set_up_env
       run: |
+        ### Update runner environnement
         echo "py_it_dir=$RUNNER_TEMP/py-youwol-integration/" >> $GITHUB_ENV
         echo "py_it_py_youwol_dir=$GITHUB_WORKSPACE/.py-youwol-integration/py-youwol" >> $GITHUB_ENV
         echo "py_it_conf_dir=$GITHUB_WORKSPACE/.py-youwol-integration/it-conf" >> $GITHUB_ENV
         echo "py_it_shutdown_script=$RUNNER_TEMP/py-youwol-integration/py-youwol.shutdown.sh" >> $GITHUB_ENV
+        echo "::group::make src directory"
         mkdir $RUNNER_TEMP/py-youwol-integration
+        echo "::endgroup::"
       shell: bash
     # Log the configured environnement
     - name: Dump environnement variables
       id: dump_env
       run: |
+        ### Dump environnement variables
         echo "::group::Environnement variables"
         export
         echo "::endgroup::"
@@ -83,6 +87,7 @@ runs:
     - name: Wait for running instance
       id: wait_py_youwol_running
       run: |
+        ### Wait for running instance
         jq_cmd='if .status == "py-youwol ok" then halt else error ("incorrect status from py-youwol") end'
         for try in $(seq 1 1 10); do
           echo "try $try/10 to contact py-youwol instance"
@@ -96,5 +101,6 @@ runs:
     - name: Summary
       id: summary
       run: |
+        ### Log summary
         echo "::notice title=Py-Youwol Integration Testing::youwol/py-youwol@${{ inputs.pyYouwolRef}} running with configuration from youwol/integration-tests-conf@${{ inputs.integrationTestsRef }}"
       shell: bash

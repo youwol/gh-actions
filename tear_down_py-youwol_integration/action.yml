@@ -27,6 +27,7 @@ runs:
     - name: Summary
       id: sunnary
       run: |
+        ### Log summary
         message="py-youwol has been shutdown"
         if [ ${{ inputs.cleanDirs }} == 'true' ];then
           message="${message} and afferent directories have been removed"

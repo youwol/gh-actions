@@ -1,6 +1,20 @@
 name: Set up repository
 description: Set up a yarn repository and install package.json
-
+inputs:
+  ref:
+    description: "the ref to checkout (default to develop)"
+    required: false
+    default: develop
+  token:
+    description: "the github token for actions/checkout"
+    required: true
+outputs:
+  name:
+    description: "the name of the project"
+    value: ${{ steps.summary.outputs.name }}
+  version:
+    description: "the version of the project"
+    value: ${{ steps.summary.outputs.version }}
 
 runs:
   using: 'composite'
@@ -8,13 +22,29 @@ runs:
     - name: Checkout repo
       id: checkout
       uses: actions/checkout@v2
+      with:
+        ref: ${{ inputs.ref }}
+        token: ${{ inputs.token }}
+
     - name: Setup Node.js
       id: setup_node
       uses: actions/setup-node@v2
       with:
         node-version: '16'
         cache: 'yarn'
+
     - name: Install dependencies
       id: install_yarn_deps
       run: yarn --frozen-lockfile
+      shell: bash
+
+    - name: Summary
+      id: summary
+      run: |
+        ### Log summary & set action outputs
+        name=$(jq -r -e ".name" package.json)
+        version=$(jq -r -e ".version" package.json)
+        echo "::set-output name=name::${name}"
+        echo "::set-output name=version::${version}"
+        echo "::notice title=Set up repository::Project '${name}', version '${version}'"
       shell: bash

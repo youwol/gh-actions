@@ -6,6 +6,18 @@ on:
         description: 'the new version'
         required: true
         type: string
+      dryRun:
+        description: 'use dry-run/* branches and does not publish anything'
+        required: false
+        type: boolean
+        default: true # To be change to false once ready, obviously
+    secrets:
+      nestor_gpg_priv:
+        description: Nestor GPG armored private key
+        required: true
+      nestor_github_pat:
+        description: Nestor Github PAT
+        required: true
 
 jobs:
   update-version-string:
@@ -16,15 +28,46 @@ jobs:
       - name: Set up repo
         id: set_up_repo
         uses: youwol/gh-actions/set_up_repo@main
+        with:
+          token: ${{ secrets.nestor_github_pat }}
 
-      - name: Prepare git
-        id: set_up_git
+      - name: Check new version string
+        id: check_new_version
+        env:
+          current_version: ${{ steps.set_up_repo.outputs.version }}
         run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
+          ### Check new version string
+          echo "::debug::new_version=${new_version}"
+          echo "::debug::current_version=${current_version}"
+          new_version_exact=$(yarn -s semver -l "${new_version}")
+          echo "::debug::new_version_exact=${new_version_exact}"
+          if [ -z "${new_version_exact}" ]; then
+            echo "::error title=Incorrect new version::'$new_version' does not look like a version string"
+            exit 1
+          fi
+          echo "::debug::new version is parseable"
+          if [ "${new_version_exact}" != "${new_version}" ]; then
+            echo "::error title=Incorrect new version::'$new_version' does not look like a version string. Did you mean '${new_version_exact}' ?"
+            exit 1
+          fi
+          echo "::debug::new version is ok"
+          latest_version=$(yarn -s semver "${current_version}" "${new_version}" | tail -n1 )
+          if [ "${latest_version}" != "${new_version}" ]; then
+            echo "::error title=Incorrect new version::'${new_version}' is older than '${current_version}'"
+            exit 1
+          fi
+          echo "::debug::new version is newer"
+
+      - name: Set up Nestor
+        id: set_up_nestor
+        env:
+          NESTOR_GPG_PRIV: ${{ secrets.NESTOR_GPG_PRIV }}
+        uses: youwol/gh-actions/set_up_nestor@main
 
       - name: Update version
         id: update_version
+        env:
+          GNUPGHOME: ${{ steps.set_up_nestor.outputs.gnupghome }}
         run: yarn version --new-version ${new_version}
 
       - name: Prepare next version
@@ -33,10 +76,105 @@ jobs:
 
       - name: Commit next version
         id: commit
+        env:
+          GNUPGHOME: ${{ steps.set_up_nestor.outputs.gnupghome }}
         run: |
+          ### Commit next version
+          echo "::group::Staging package.json"
           git add package.json
-          git commit -m "start ${new_version}-wip"
+          echo "::endgroup::"
+          echo "::group::Commiting package.json"
+          git commit -m "🔖 start ${new_version}-wip"
+          echo "::endgroup::"
+
+      - name: Fast-forward main branch to track latest release
+        id: fast_forword_main
+        run: |
+          ### Fast-forward main
+          echo "::group::Fetching origin"
+          git fetch origin main:main --unshallow
+          echo "::endgroup::"
+          echo "::group::Checkout main"
+          git checkout main
+          echo "::endgroup::"
+          echo "::group::Fast-forward main to v${new_version}"
+          git merge --ff-only v${new_version}
+          echo "::endgroup::"
+
+      - name: Modify upstream branches for dry-run
+        id: dry_run
+        if: inputs.dryRun
+        run: |
+          ### Set upstreams to dry-run/* branches
+          echo "::group::Set branch develop upstream to dry-run/develop"
+          git branch develop --set-upstream-to=origin/dry-run/develop
+          echo "::endgroup::
+          echo "::group::Set branch main upstream to dry-run/main"
+          git branch main --set-upstream-to=origin/dry-run/main
+          echo "::endgroup::
+          echo "::warning title=Dry-run::Pushing to dry-run/* branches. Version tag will still be pushed, albeit not on main & develop !"
 
       - name: Push
         id: push
-        run: git push
+        run: git push --atomic origin --all --follow-tags
+
+      - name: Summary
+        id: summary
+        env:
+          previous_version: ${{ steps.set_up_repo.outputs.version }}
+          project_name: ${{ steps.set_up_repo.outputs.name }}
+        run: |
+          ### Log Summary
+          echo "::notice title=${project_name} ${new_version}::New version '${new_version}' tagged on branch main & develop"
+          echo "::notice title=Bump ${project_name} to version ${new_version}-wip::Bump project '${project_name}' version from '${previous_version}' to version '${new_version}-wip'"
+
+  publish-npmjs:
+    runs-on: ubuntu-latest
+    needs: update-version-string
+    env:
+      dry_run: 'true'
+    steps:
+      - name: Set up repo
+        id: set_up_repo
+        uses: youwol/gh-actions/set_up_repo@main
+        with:
+          ref: v${{ inputs.newVersion }}
+          token: ${{ secrets.github_token }}
+
+      - name: Publish NPMjs
+        id: publish_npmjs
+        if: ${{ env.dry_run }}
+        run: echo "::warning::Not implemented (yarn publish)"
+
+
+  publish-pages:
+    runs-on: ubuntu-latest
+    needs: update-version-string
+    env:
+      dry_run: true
+    steps:
+      - name: Set up repo
+        id: set_up_repo
+        uses: youwol/gh-actions/set_up_repo@main
+        with:
+          ref: v${{ inputs.newVersion }}
+          token: ${{ secrets.github_token }}
+
+      - name: Publish Pages
+        id: publish_pages
+        run: echo "::warning::Not implemented (WIP)"
+
+  publish-CDN:
+    runs-on: ubuntu-latest
+    needs: update-version-string
+    steps:
+      - name: Set up repo
+        id: set_up_repo
+        uses: youwol/gh-actions/set_up_repo@main
+        with:
+          ref: v${{ inputs.newVersion }}
+          token: ${{ secrets.github_token }}
+
+      - name: Publish CDN
+        id: publish_pages
+        run: echo "::warning::Not implemented (WIP)"
