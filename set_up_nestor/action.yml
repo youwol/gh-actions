@@ -17,27 +17,29 @@ runs:
       id: set_up_gpg
       env:
         gnupghome_base: ${{ runner.temp }}/gnup_pg_home
-        NESTOR_EMAIL: "nestor@youwol.com"
-        NESTOR_NAME: "Nestor YouBot"
+        nestor_email: "nestor@youwol.com"
+        nestor_name: "Nestor YouBot"
+        nestor_gpg_priv: ${{ inputs.nestor_gpp_priv }}
       run: |
         ### Set up GPG for Nestor
         echo "::debug::gpg version: $(gpg --version)"
         GNUPGHOME="${gnupghome_base}/$(base64 <<<$RANDOM)"
+        export GNUPGHOME
         echo "::group::Prepare GNUPGHOME=${GNUPGHOME}"
         mkdir $GNUPGHOME
         chmod 0700 $GNUPGHOME
         echo "::endgroup::"
         echo "::group::Import GPG private key"
-        echo "${{ env.NESTOR_GPG_PRIV }}" | gpg --import --batch --no-tty
+        gpg --import --batch --no-tty <<<${nestor_gpg_priv}
         echo "::endgroup::"
         echo "::group::Get key fingerprint"
-        gpg_fprs_output=$(gpg --fingerprint --with-colons --list-keys $NESTOR_EMAIL) 
+        gpg_fprs_output=$(gpg --fingerprint --with-colons --list-keys $nestor_email) 
         fpr=$(awk -F: '$1 == "fpr" {print $10;}' <<<$gpg_fprs_output | head -n1)
         echo "::endgroup::"
         echo "::group::Outputs GPG informations"
         echo "::set-output name=gnupghome::$GNUPGHOME"
-        echo "::set-output name=nestor_email::$NESTOR_EMAIL"
-        echo "::set-output name=nestor_name::$NESTOR_NAME"
+        echo "::set-output name=nestor_email::$nestor_email"
+        echo "::set-output name=nestor_name::$nestor_name"
         echo "::set-output name=nestor_signingkey::$fpr"
         echo "::endgroup::"
       shell: bash
@@ -57,9 +59,9 @@ runs:
     - name: Summary
       id: summary
       env:
-        GNUPGHOME: ${{ steps.set_up_gpg.outputs.gnupghome }}
+        gnupghome: ${{ steps.set_up_gpg.outputs.gnupghome }}
       run: |
         message="Nestor set up to commit as « $NESTOR_NAME ($NESTOR_EMAIL) » with GPG key $NESTOR_GPG_FPR"
-        echo "::set-output name=gnupghome::$GNUPGHOME"
+        echo "::set-output name=gnupghome::$gnupghome"
         echo "::notice title=Nestor Set Up::$message"
       shell: bash
