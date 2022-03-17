@@ -21,7 +21,7 @@ runs:
         NESTOR_NAME: "Nestor YouBot"
       run: |
         ### Set up GPG for Nestor
-        echo "::debug::gpg version: ${gpg --version}"
+        echo "::debug::gpg version: $(gpg --version)"
         GNUPGHOME="${gnupghome_base}/$(base64 <<<$RANDOM)"
         echo "::group::Prepare GNUPGHOME=${GNUPGHOME}"
         mkdir $GNUPGHOME
