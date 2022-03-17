@@ -1,0 +1,27 @@
+name: Callable Build artefacts
+
+on:
+  workflow_call:
+    inputs:
+      archive:
+        description: archive artifacts name
+        default: ''
+        required: false
+        type: string
+
+jobs:
+  build_artefacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Typescript repo
+        id: action_ts_setup_repo
+        uses: youwol/gh-actions/ts_set_up_repo@main
+        with:
+          ref: ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build typescript artefacts
+        id: action_ts_build_artefact
+        uses: youwol/gh-actions/ts_build_artefacts@main
+        with:
+          integration: py-youwol
+          archive: ${{ inputs.archive }}

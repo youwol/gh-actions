@@ -1,12 +1,12 @@
-name: Create a new version, optionnally publishing it
+name: Create a new version of Typescript project, optionnally publishing it
 on:
   workflow_call:
     inputs:
-      newVersion:
-        description: 'the new version'
+      version:
+        description: 'the version to release'
         required: true
         type: string
-      dryRun:
+      dry-run:
         description: 'use dry-run/* branches and do not publish anything'
         required: false
         type: boolean
@@ -20,43 +20,51 @@ on:
         required: true
 
 jobs:
-  update-version-string:
+  make-release:
     runs-on: ubuntu-latest
     env:
-      new_version: ${{ inputs.newVersion }}
+      new_version: ${{ inputs.version }}
     steps:
       - name: Set up repo
-        id: set_up_repo
-        uses: youwol/gh-actions/set_up_repo@main
+        id: action_ts_set_up_repo
+        uses: youwol/gh-actions/ts_set_up_repo@main
         with:
-          token: ${{ secrets.nestor_github_pat }}
+          token: ${{ secrets.NESTOR_GITHUB_PAT }}
 
-      - name: Check new version string
+      - name: Check new version string with yarn semver
         id: check_new_version
         env:
-          current_version: ${{ steps.set_up_repo.outputs.version }}
+          current_version: ${{ steps.action_ts_set_up_repo.outputs.version }}
         run: |
           ### Check new version string
-          echo "::debug::new_version=${new_version}"
-          echo "::debug::current_version=${current_version}"
+          echo "Comparing input '${new_version}' to current version '${current_version}'"
+          #
           new_version_exact=$(yarn -s semver -l "${new_version}")
-          echo "::debug::new_version_exact=${new_version_exact}"
           if [ -z "${new_version_exact}" ]; then
-            echo "::error title=Incorrect new version::'$new_version' does not look like a version string"
+            echo "::error title=Incorrect new version::'${new_version}' does not look like a version string"
             exit 1
           fi
-          echo "::debug::new version is parseable"
+          echo "'${new_version}' is parseable"
+          #
           if [ "${new_version_exact}" != "${new_version}" ]; then
-            echo "::error title=Incorrect new version::'$new_version' does not look like a version string. Did you mean '${new_version_exact}' ?"
+            message="'${new_version}' does not look like a version string. Did you mean '${new_version_exact}' ?"
+            echo "::error title=Incorrect new version::${message}"
             exit 1
           fi
-          echo "::debug::new version is ok"
+          echo "'${new_version}' is a correct version string"
+          #
           latest_version=$(yarn -s semver "${current_version}" "${new_version}" | tail -n1 )
           if [ "${latest_version}" != "${new_version}" ]; then
             echo "::error title=Incorrect new version::'${new_version}' is older than '${current_version}'"
             exit 1
           fi
-          echo "::debug::new version is newer"
+          echo "'${new_version}' is newer than '${current_version}'"
+
+      - name: Static analysis of Typescript project
+        id: action_ts_static_analysis
+        uses: youwol/gh-actions/ts_static_analysis@main
+        with:
+          archive: ts_static_analysis
 
       - name: Set up Nestor
         id: set_up_nestor
@@ -64,31 +72,41 @@ jobs:
         with:
           gpgKey: ${{ secrets.NESTOR_GPG_PRIV }}
 
-      - name: Update version
-        id: update_version
-        env:
-          GNUPGHOME: ${{ steps.set_up_nestor.outputs.gnupghome }}
-        run: yarn -s version --new-version ${new_version}
-
-      - name: Prepare next version
-        id: prepare_next_version
-        run: yarn -s version --no-git-tag-version --new-version $(yarn -s semver -i patch ${new_version})-wip
-
-      - name: Commit next version
-        id: commit
+      - name: Update version of Typescript project
+        id: yarn_version
         env:
           GNUPGHOME: ${{ steps.set_up_nestor.outputs.gnupghome }}
         run: |
-          ### Commit next version
-          echo "::group::Staging package.json"
-          git add package.json
+          ### Update version
+          yarn -s version --new-version ${new_version}
+          echo "::set-output name=tag::v${new_version}"
+
+      - name: Build Typescript artefacts
+        id: action_ts_build_artefacts
+        uses: youwol/gh-actions/ts_build_artefacts@main
+        with:
+          archive: ts_build_artefacts
+
+      - name: Prepare next version of Typescript project
+        id: yarn_next_version
+        env:
+          GNUPGHOME: ${{ steps.set_up_nestor.outputs.gnupghome }}
+        run: |
+          ### Prepare next version
+          next_version=$(yarn -s semver -i patch ${new_version})-wip
+          echo "::group::setting package.json version to ${next_version}"
+          yarn -s version --no-git-tag-version --new-version ${next_version}
           echo "::endgroup::"
           echo "::group::Commiting package.json"
-          git commit -m "🔖 start ${new_version}-wip"
+          git add package.json
+          git commit -m "🔖 start ${next_version}"
           echo "::endgroup::"
+          echo "::set-output name=version::${next_version}"
 
       - name: Fast-forward main branch to track latest release
         id: fast_forword_main
+        env:
+          tag: ${{ steps.update_version.outputs.tag }}
         run: |
           ### Fast-forward main
           echo "::group::Fetching origin"
@@ -97,8 +115,8 @@ jobs:
           echo "::group::Checkout main"
           git checkout main
           echo "::endgroup::"
-          echo "::group::Fast-forward branch main to tag v${new_version}"
-          git merge --ff-only v${new_version}
+          echo "::group::Fast-forward branch main to tag ${tag}"
+          git merge --ff-only ${tag} 
           echo "::endgroup::"
 
       - name: Modify upstream branches for dry-run
@@ -109,15 +127,15 @@ jobs:
           echo "::group::Fetching origin"
           git fetch origin dry-run/develop dry-run/main
           echo "::endgroup::"
-          echo "::group::Set branch develop upstream to dry-run/develop"
-          git branch develop --set-upstream-to=origin/dry-run/develop
+          echo "::group::Rename branch develop to dry-run/develop"
+          git branch develop -m dry-run/develop
           echo "::endgroup::"
-          echo "::group::Set branch main upstream to dry-run/main"
-          git branch main --set-upstream-to=origin/dry-run/main
+          echo "::group::Rename branch main to dry-run/main"
+          git branch main -m dry-run/main
           echo "::endgroup::"
           echo "::warning title=Dry-run::Pushing to dry-run/* branches. Version tag will still be pushed, albeit not on main & develop !"
 
-      - name: Push
+      - name: Push commits
         id: push
         run: git push --atomic origin --all --follow-tags
 
@@ -125,17 +143,16 @@ jobs:
         id: summary
         env:
           previous_version: ${{ steps.set_up_repo.outputs.version }}
+          next_version: ${{ steps.prepare_next_version.outputs.next_version }}
           project_name: ${{ steps.set_up_repo.outputs.name }}
         run: |
           ### Log Summary
           echo "::notice title=${project_name} ${new_version}::New version '${new_version}' tagged on branch main & develop"
-          echo "::notice title=Bump ${project_name} to version ${new_version}-wip::Bump project '${project_name}' version from '${previous_version}' to version '${new_version}-wip'"
+          echo "::notice title=Bump ${project_name} to version ${next_version}::Bump project '${project_name}' version '${previous_version}' => '${next_version}'"
 
   publish-npmjs:
     runs-on: ubuntu-latest
-    needs: update-version-string
-    env:
-      dry_run: 'true'
+    needs: make-release
     steps:
       - name: Set up repo
         id: set_up_repo
@@ -143,16 +160,21 @@ jobs:
         with:
           ref: v${{ inputs.newVersion }}
           token: ${{ secrets.github_token }}
+      - name: dowload whole repo
+        uses: action/download@v3
+        with:
+          name: whole_repo
 
       - name: Publish NPMjs
         id: publish_npmjs
-        if: ${{ env.dry_run }}
-        run: echo "::warning::Not implemented (yarn publish)"
+        if: ! inputs.dryRun
+        run: yarn publish
+
 
 
   publish-pages:
     runs-on: ubuntu-latest
-    needs: update-version-string
+    needs: make-release
     env:
       dry_run: true
     steps:
@@ -160,7 +182,7 @@ jobs:
         id: set_up_repo
         uses: youwol/gh-actions/set_up_repo@main
         with:
-          ref: v${{ inputs.newVersion }}
+          ref:
           token: ${{ secrets.github_token }}
 
       - name: Publish Pages
@@ -169,8 +191,13 @@ jobs:
 
   publish-CDN:
     runs-on: ubuntu-latest
-    needs: update-version-string
+    needs: make-release
     steps:
+      - name: dowload whole repo
+        uses: action/download@v3
+        with:
+          name: whole_repo
+
       - name: Set up repo
         id: set_up_repo
         uses: youwol/gh-actions/set_up_repo@main

@@ -1,36 +1,55 @@
 name: Tear Down PyYouwol Integration Testing
 description: Stop daemonized py-youwol
 inputs:
-  cleanDirs:
-    description: "Remove directories (true by default)"
-    required: false
-    default: "true"
-
+  shutdown_script:
+    description: "Path to the shutdown script to call"
+    required: true
+  src_dir:
+    description: "Path to py-youwol sources directory"
+    required: true
+  conf_dir:
+    description: "Path to configuration directory"
+    required: true
+  work_dir:
+    description: "Path to work directory"
+    required: true
 
 runs:
   using: 'composite'
   steps:
-    - name: Stopping py-youwol
-      id: shutdown_py_youwol
-      run: sh $py_it_shutdown_script
-      shell: bash
-    - name: Remove py-youwol directory
-      id: remove_py_youwol_dir
-      if: inputs.cleanDirs == 'true'
-      run: rm -r $py_it_py_youwol_dir
-      shell: bash
-    - name: Remove integration testing configuration directory
-      id: remove_it_conf
-      if: inputs.cleanDirs == 'true'
-      run: rm -r $py_it_conf_dir
-      shell: bash
+    - name: Stop py-youwol
+      id: stop_py-youwol
+      env:
+        shutdown_script: ${{ inputs.shutdown_script }}
+      run: |
+        if -e ${shutdown_script}; then
+          sh ${shutdown_script}
+        fi
+      shell: sh
+
+    - name: Upload py-youwol integration working directory
+      uses: actions/upload-artifact@v3
+      with:
+        name: py-youwol-integration-tests-work-dir
+        path: ${{ inputs.work_dir }}
+
+    - name: Tear down
+      id: tear_down_py_youwol
+      env:
+        src_dir: ${{ inputs.src_dir }}
+        conf_dir: ${{ inputs.conf_dir }}
+        work_dir: ${{ inputs.work_dir }}
+      run: |
+        ### Tear down py-youwol
+        rm -r ${src_dir}
+        rm -r ${conf_dir}
+        rm -r ${work_dir}
+      shell: sh
+
     - name: Summary
       id: sunnary
       run: |
         ### Log summary
-        message="py-youwol has been shutdown"
-        if [ ${{ inputs.cleanDirs }} == 'true' ];then
-          message="${message} and afferent directories have been removed"
-        fi
+        message="py-youwol has been shutdown and afferent directories have been removed"
         echo "::notice title=Py-Youwol Integration Testing::${message}"
       shell: bash

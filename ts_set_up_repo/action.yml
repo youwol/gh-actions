@@ -1,4 +1,4 @@
-name: Set up repository
+name: Set up typescript repository
 description: Set up a yarn repository and install package.json
 inputs:
   ref:
@@ -40,11 +40,13 @@ runs:
 
     - name: Summary
       id: summary
+      env:
+        job_id: ${{ github.job }}
       run: |
         ### Log summary & set action outputs
         name=$(jq -r -e ".name" package.json)
         version=$(jq -r -e ".version" package.json)
         echo "::set-output name=name::${name}"
         echo "::set-output name=version::${version}"
-        echo "::notice title=Set up repository::Project '${name}', version '${version}'"
+        echo "::notice title=Set up repository for job '${job_id}'::Project '${name}', version '${version}'"
       shell: bash
