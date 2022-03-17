@@ -19,7 +19,7 @@ runs:
         gnupghome_base: ${{ runner.temp }}/gnup_pg_home
         nestor_email: "nestor@youwol.com"
         nestor_name: "Nestor YouBot"
-        nestor_gpg_priv: ${{ inputs.nestor_gpp_priv }}
+        nestor_gpg_priv: ${{ inputs.nestor_gpg_priv }}
       run: |
         ### Set up GPG for Nestor
         echo "::debug::gpg version: $(gpg --version)"

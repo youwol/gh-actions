@@ -60,9 +60,9 @@ jobs:
 
       - name: Set up Nestor
         id: set_up_nestor
-        env:
-          NESTOR_GPG_PRIV: ${{ secrets.NESTOR_GPG_PRIV }}
         uses: youwol/gh-actions/set_up_nestor@main
+        with:
+          nestor_gpg_priv: ${{ secrets.NESTOR_GPG_PRIV }}
 
       - name: Update version
         id: update_version
