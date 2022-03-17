@@ -97,7 +97,7 @@ jobs:
           echo "::group::Checkout main"
           git checkout main
           echo "::endgroup::"
-          echo "::group::Fast-forward main to v${new_version}"
+          echo "::group::Fast-forward branch main to tag v${new_version}"
           git merge --ff-only v${new_version}
           echo "::endgroup::"
 
@@ -106,6 +106,9 @@ jobs:
         if: inputs.dryRun
         run: |
           ### Set upstreams to dry-run/* branches
+          echo "::group::Fetching origin"
+          git fetch origin dry-run/develop dry-run/main
+          echo "::endgroup::
           echo "::group::Set branch develop upstream to dry-run/develop"
           git branch develop --set-upstream-to=origin/dry-run/develop
           echo "::endgroup::
