@@ -37,7 +37,7 @@ runs:
         echo "::set-output name=working_dir::${working_dir}"
         echo "::set-output name=src_dir::$GITHUB_WORKSPACE/.py-youwol-integration/py-youwol"
         echo "::set-output name=conf_dir::$GITHUB_WORKSPACE/.py-youwol-integration/it-conf"
-        echo "::set-output name=shutdown_script=${working_dir}/py-youwol.shutdown.sh" 
+        echo "::set-output name=shutdown_script_path=${working_dir}/py-youwol.shutdown.sh" 
         echo "::endgroup::"
       shell: bash
 
@@ -92,11 +92,15 @@ runs:
       run: |
         ### Wait for running instance
         jq_cmd='if .status == "py-youwol ok" then halt else error ("incorrect status from py-youwol") end'
+        #
+        echo "::group::Trying at most 10 times to call healtz endpoint, waiting 1 seconde between retries"
         for try in $(seq 1 1 10); do
           echo "try $try/10 to contact py-youwol instance"
           curl --silent http://localhost:2001/healthz | jq -e "${jq_cmd}" && exit 0
           sleep 1
         done
+        #
+        echo "::endgroup::"
         echo "::error ::Failed to contact py-youwol instance after 10 seconds"
         exit 1
       shell: bash
