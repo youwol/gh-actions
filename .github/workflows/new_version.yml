@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       dryRun:
-        description: 'use dry-run/* branches and does not publish anything'
+        description: 'use dry-run/* branches and do not publish anything'
         required: false
         type: boolean
         default: true # To be change to false once ready, obviously

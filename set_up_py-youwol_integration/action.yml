@@ -9,6 +9,10 @@ inputs:
     description: Git ref for integration-tests-conf checkout
     required: false
     default: main
+outputs:
+  shutdownScript:
+    description: path to the shutdown script
+    value: ${{ steps.summary.outputs.shutdown_script_path }}
 
 runs:
   using: 'composite'
@@ -17,40 +21,35 @@ runs:
     # $GITHUB_ENV is a file managed by Github Actions
     # This environnement variables will be available during the whole workflow
     # - py_it_dir : Path of the directory containing everything pertaining to py-youwol integration testing
-    # - py_it_py_youwol_dir : Path of the sources of py-youwol
+    # - py_it_src_dir : Path of the sources of py-youwol
     # - py_it_conf_dir : Path of the configuration use for integration testing
     # - py_it_shutdown_script : Path of the shell script for stopping the running py-youwol instance
-    - name: Set up environnement variables
-      id: set_up_env
+    - name: Set up actions variables
+      id: set_up_vars
       run: |
-        ### Update runner environnement
-        echo "py_it_dir=$RUNNER_TEMP/py-youwol-integration/" >> $GITHUB_ENV
-        echo "py_it_py_youwol_dir=$GITHUB_WORKSPACE/.py-youwol-integration/py-youwol" >> $GITHUB_ENV
-        echo "py_it_conf_dir=$GITHUB_WORKSPACE/.py-youwol-integration/it-conf" >> $GITHUB_ENV
-        echo "py_it_shutdown_script=$RUNNER_TEMP/py-youwol-integration/py-youwol.shutdown.sh" >> $GITHUB_ENV
-        echo "::group::make src directory"
-        mkdir $RUNNER_TEMP/py-youwol-integration
+        ### Set up action variables
+        echo "::group::make working directory"
+        working_dir="${RUNNER_TEMP}/py-youwoul-integration/$(base64 <<<$RANDOM)"
+        mkdir "${working_dir}"
         echo "::endgroup::"
-      shell: bash
-    # Log the configured environnement
-    - name: Dump environnement variables
-      id: dump_env
-      run: |
-        ### Dump environnement variables
-        echo "::group::Environnement variables"
-        export
+        #
+        echo "::group::outputs"
+        echo "::set-output name=working_dir::${working_dir}"
+        echo "::set-output name=src_dir::$GITHUB_WORKSPACE/.py-youwol-integration/py-youwol"
+        echo "::set-output name=conf_dir::$GITHUB_WORKSPACE/.py-youwol-integration/it-conf"
+        echo "::set-output name=shutdown_script=${working_dir}/py-youwol.shutdown.sh" 
         echo "::endgroup::"
       shell: bash
 
 ###### Checkout repositories
-    # Checkout py-youwol into $py_it_py_youwol_dir, using the ref from input pyYouwolRef
+    # Checkout py-youwol into $py_it_src_dir, using the ref from input pyYouwolRef
     - name: Checkout py-youwol repo
       id: checkout_py_youwol
       uses: actions/checkout@v3
       with:
         repository: youwol/py-youwol
         ref: ${{ inputs.pyYouwolRef }}
-        path: ${{ env.py_it_py_youwol_dir }}
+        path: ${{ steps.set_up_vars.output.src_dir }}
     # Checkout the integration testing conf into $py_it_conf_dir, using the ref from input integrationTestsRef
     - name: Checkout integration tests configuration repo
       id: checkout_it_conf
@@ -58,7 +57,7 @@ runs:
       with:
         repository: youwol/integration-tests-conf
         ref: ${{ inputs.integrationTestsRef }}
-        path: ${{ env.py_it_conf_dir }}
+        path: ${{ steps.set_up_vars.output.conf_dir }}
 
 ###### Setup python & dependencies
     - name: Setup Python 3.9
@@ -69,7 +68,9 @@ runs:
         cache: 'pip'
     - name: Install dependencies
       id: install_python_dep
-      run: pip install -r ${py_it_py_youwol_dir}/requirements.txt
+      env:
+        src_dir: ${{ steps.set_up_vars.outputs.src_dir }}
+      run: pip install -r ${src_dir}/requirements.txt
       shell: bash
 
 ###### Launch py-youwol
@@ -78,10 +79,12 @@ runs:
     # PYTHONPATH is defined only for this step, so it does not pollute other steps or jobs
     - name: Launch py-youwol
       id: launch_py_youwol
-      working-directory: ${{ env.py_it_dir }}
       env:
-        PYTHONPATH: ${{ env.py_it_py_youwol_dir }}
-      run: python3 -u ${py_it_py_youwol_dir}/youwol/main.py --conf ${py_it_conf_dir}/yw_config_IT.py --daemonize &
+        PYTHONPATH: ${{ steps…set_up_var.outputs.src_dir }}
+        src_dir: ${{ steps.set_up_vars.outputs.src_dir }}
+        conf_dir: ${{ steps.set_up_vars.outputs.conf_dir }}
+      working-directory: ${{ steps.set_up_var.outputs.working_dir }}
+      run: python3 -u ${src_dir}/youwol/main.py --conf ${conf_dir}/yw_config_IT.py --daemonize &
       shell: bash
     # Try at most 10 times to call healtz endpoint, checking its response, and waiting 1 second between retries
     - name: Wait for running instance
@@ -100,7 +103,10 @@ runs:
     # Finally, some annotated logging about how everything is configured
     - name: Summary
       id: summary
+      env:
+        shutdown_script_path: ${{ steps.set_up_vars.outputs.shutdown_script_path }}
       run: |
         ### Log summary
         echo "::notice title=Py-Youwol Integration Testing::youwol/py-youwol@${{ inputs.pyYouwolRef}} running with configuration from youwol/integration-tests-conf@${{ inputs.integrationTestsRef }}"
+        echo "::set-output name=shutdown_script_path::${shutdown_script_path}"
       shell: bash

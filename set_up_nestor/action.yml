@@ -24,18 +24,22 @@ runs:
         ### Set up GPG for Nestor
         echo "::debug::gpg version: $(gpg --version)"
         GNUPGHOME="${gnupghome_base}/$(base64 <<<$RANDOM)"
-        export GNUPGHOME
+        #
         echo "::group::Prepare GNUPGHOME=${GNUPGHOME}"
         mkdir $GNUPGHOME
         chmod 0700 $GNUPGHOME
+        export GNUPGHOME
         echo "::endgroup::"
+        #
         echo "::group::Import GPG private key"
         gpg --import --batch --no-tty <<<${nestor_gpg_priv}
         echo "::endgroup::"
+        #
         echo "::group::Get key fingerprint"
         gpg_fprs_output=$(gpg --fingerprint --with-colons --list-keys $nestor_email) 
         fpr=$(awk -F: '$1 == "fpr" {print $10;}' <<<$gpg_fprs_output | head -n1)
         echo "::endgroup::"
+        #
         echo "::group::Outputs GPG informations"
         echo "::set-output name=gnupghome::$GNUPGHOME"
         echo "::set-output name=nestor_email::$nestor_email"
@@ -61,7 +65,8 @@ runs:
       env:
         gnupghome: ${{ steps.set_up_gpg.outputs.gnupghome }}
       run: |
+        ### Log Summary and set action outputs
         message="Nestor set up to commit as « $NESTOR_NAME ($NESTOR_EMAIL) » with GPG key $NESTOR_GPG_FPR"
-        echo "::set-output name=gnupghome::$gnupghome"
         echo "::notice title=Nestor Set Up::$message"
+        echo "::set-output name=gnupghome::$gnupghome"
       shell: bash
