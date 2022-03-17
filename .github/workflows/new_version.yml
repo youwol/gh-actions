@@ -108,13 +108,13 @@ jobs:
           ### Set upstreams to dry-run/* branches
           echo "::group::Fetching origin"
           git fetch origin dry-run/develop dry-run/main
-          echo "::endgroup::
+          echo "::endgroup::"
           echo "::group::Set branch develop upstream to dry-run/develop"
           git branch develop --set-upstream-to=origin/dry-run/develop
-          echo "::endgroup::
+          echo "::endgroup::"
           echo "::group::Set branch main upstream to dry-run/main"
           git branch main --set-upstream-to=origin/dry-run/main
-          echo "::endgroup::
+          echo "::endgroup::"
           echo "::warning title=Dry-run::Pushing to dry-run/* branches. Version tag will still be pushed, albeit not on main & develop !"
 
       - name: Push
