@@ -1,11 +1,11 @@
 name: Set up Nestor
 description: Set up git & GnuPG for Nestor
 inputs:
-  nestor_gpg_priv:
+  gpgKey:
     description: The GPG armored private key for Nestor
     required: true
 outputs:
-  nestor_gnupghome:
+  gnupghome:
     description: Home repertory for GPG operations
     value: ${{ steps.summary.outputs.gnupghome }}
 
@@ -64,9 +64,12 @@ runs:
       id: summary
       env:
         gnupghome: ${{ steps.set_up_gpg.outputs.gnupghome }}
+        nestor_name: ${{ steps.set_up_gpg.outputs.nestor_name }}
+        nestor_email: ${{ steps.set_up_gpg.outputs.nestor_email }}
+        nestor_signingkey: ${{ steps.set_up_gpg.outputs.nestor_signingkey }}
       run: |
         ### Log Summary and set action outputs
-        message="Nestor set up to commit as « $NESTOR_NAME ($NESTOR_EMAIL) » with GPG key $NESTOR_GPG_FPR"
+        message="Nestor set up to commit as « ${nestor_name} (${nestor_email}) » with GPG key ${nestor_signingkey}"
         echo "::notice title=Nestor Set Up::$message"
         echo "::set-output name=gnupghome::$gnupghome"
       shell: bash

@@ -62,7 +62,7 @@ jobs:
         id: set_up_nestor
         uses: youwol/gh-actions/set_up_nestor@main
         with:
-          nestor_gpg_priv: ${{ secrets.NESTOR_GPG_PRIV }}
+          gpgKey: ${{ secrets.NESTOR_GPG_PRIV }}
 
       - name: Update version
         id: update_version
