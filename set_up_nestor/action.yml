@@ -26,7 +26,7 @@ runs:
         GNUPGHOME="${gnupghome_base}/$(base64 <<<$RANDOM)"
         #
         echo "::group::Prepare GNUPGHOME=${GNUPGHOME}"
-        mkdir $GNUPGHOME
+        mkdir -p $GNUPGHOME
         chmod 0700 $GNUPGHOME
         export GNUPGHOME
         echo "::endgroup::"
