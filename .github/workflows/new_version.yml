@@ -68,11 +68,11 @@ jobs:
         id: update_version
         env:
           GNUPGHOME: ${{ steps.set_up_nestor.outputs.gnupghome }}
-        run: yarn version --new-version ${new_version}
+        run: yarn -s version --new-version ${new_version}
 
       - name: Prepare next version
         id: prepare_next_version
-        run: yarn version --no-git-tag-version --new-version $(yarn -s semver -i patch ${new_version})-wip
+        run: yarn -s version --no-git-tag-version --new-version $(yarn -s semver -i patch ${new_version})-wip
 
       - name: Commit next version
         id: commit
